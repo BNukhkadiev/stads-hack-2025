@@ -25,10 +25,12 @@ def get_ids_of_rare(df : pd.DataFrame, char_cols = ["WAERS", "BUKRS", "KTOSL", "
     ids = combined_bool[combined_bool].index
     return ids
  
-ids_of_rares = get_ids_of_rare(df)
 # %% logically there should be a match. This also alligns with anomalies
-ids_of_mismatch = df.loc[df["BUKRS"].str.slice(0,2) != df["WAERS"]].index
-# %% combine id lists
-easy_outliers = ids_of_mismatch.union(ids_of_rares)
+def get_ids_of_mismatch(df):
+    return df.loc[df["BUKRS"].str.slice(0,2) != df["WAERS"]].index
 
-# %%
+# %% combine id lists
+def get_ids_of_easy_outliers(df):
+    ids_of_rares = get_ids_of_rare(df)
+    ids_of_mismatch = get_ids_of_mismatch(df)
+    return ids_of_mismatch.union(ids_of_rares)
