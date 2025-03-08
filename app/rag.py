@@ -15,7 +15,7 @@ class RAG:
         self.transaction_embeddings = np.load(transaction_embeddings_path).astype("float32")
         # Set up OpenAI API key
         if key is not None:
-            openai.api_key
+            openai.api_key = key
         else:
             load_dotenv()
             openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -55,15 +55,31 @@ class RAG:
 
         # Derive potential regulatory concerns
         red_flags = []
-        if transaction_row["DMBTR"] > df_original["DMBTR"].quantile(0.95):  # High-value approval needed
+        if transaction_row["DMBTR"] > df_original["DMBTR"].quantile(0.95):
             red_flags.append(f"🚨 **High-Value Transaction:** Amount ({transaction_row['DMBTR']}) is in the top 5% of all transactions, requiring higher approvals.")
 
         if df_original[(df_original["DMBTR"] == transaction_row["DMBTR"]) & 
-                    (df_original["BUKRS"] == transaction_row["BUKRS"])].shape[0] > 1:
+                       (df_original["BUKRS"] == transaction_row["BUKRS"])].shape[0] > 1:
             red_flags.append(f"🚨 **Potential Duplicate Payment:** A transaction with the same amount and company code already exists.")
 
         if transaction_row["HKONT"] not in df_original["HKONT"].value_counts().head(20).index:
-            red_flags.append(f"🚨 **Uncommon Account Used:** The posting key ({transaction_row['HKONT']}) is rarely used in similar transactions.")
+            red_flags.append(f"🚨 **Uncommon Account Used:** The ledger account ({transaction_row['HKONT']}) is rarely used in similar transactions.")
+
+        # Applying additional rule-based anomaly checks
+        if df_original.duplicated(subset=["BUKRS", "WRBTR", "DMBTR"], keep=False).any():
+            red_flags.append("🚨 **Unique Value Combination Detected:** This transaction has a unique combination of company, currency, and amount, which may require further review.")
+
+        if transaction_row["WAERS"] not in df_original[df_original["BUKRS"] == transaction_row["BUKRS"]]["WAERS"].unique():
+            red_flags.append(f"🚨 **Unusual Currency for Company:** The currency ({transaction_row['WAERS']}) is uncommon for company ({transaction_row['BUKRS']}).")
+
+        if 54423 <= transaction_row["WRBTR"] <= 54478 and 910631 <= transaction_row["DMBTR"] <= 910677:
+            red_flags.append("🚨 **Suspicious Amount Range:** Both WRBTR and DMBTR are within specific flagged ranges, indicating possible irregularities.")
+
+        if transaction_row["PRCTR"] == "C20" and transaction_row["HKONT"] == "B1":
+            red_flags.append("🚨 **Unusual Profit Center & Ledger Combination:** PRCTR is 'C20' and HKONT is 'B1', which is rarely observed in normal transactions.")
+
+        if transaction_row["BUKRS"] == "C11" and (54423 <= transaction_row["WRBTR"] <= 54478 or 910631 <= transaction_row["DMBTR"] <= 910677):
+            red_flags.append("🚨 **Company-Specific Anomaly:** Transactions from company 'C11' with these WRBTR or DMBTR values are flagged for unusual activity.")
 
         # Format retrieved transaction data
         retrieved_info = "\n".join([
@@ -139,106 +155,106 @@ class RAG:
         return report
 
 
-    def generate_rag_audit_report(self, transaction_row, df_original):
-        """
-        Generate an audit-focused RAG report for a given transaction row.
-        transaction row is passed as Pandas Series object.
-        """
-        # Encode the transaction using the trained autoencoder
-        transaction_data = transaction_row[self.feature_columns].values.reshape(1, -1)
-        transaction_embedding = self.autoencoder.encoder(torch.tensor(transaction_data, dtype=torch.float32)).detach().numpy()
+    # def generate_rag_audit_report(self, transaction_row, df_original):
+    #     """
+    #     Generate an audit-focused RAG report for a given transaction row.
+    #     transaction row is passed as Pandas Series object.
+    #     """
+    #     # Encode the transaction using the trained autoencoder
+    #     transaction_data = transaction_row[self.feature_columns].values.reshape(1, -1)
+    #     transaction_embedding = self.autoencoder.encoder(torch.tensor(transaction_data, dtype=torch.float32)).detach().numpy()
 
-        # Find similar transactions
-        distances, indices = self.find_similar_transactions(transaction_embedding, top_k=5)
+    #     # Find similar transactions
+    #     distances, indices = self.find_similar_transactions(transaction_embedding, top_k=5)
 
-        # Extract metadata for similar transactions
-        retrieved_transactions = df_original.iloc[indices[0]].to_dict(orient="records")
+    #     # Extract metadata for similar transactions
+    #     retrieved_transactions = df_original.iloc[indices[0]].to_dict(orient="records")
 
-        # Derive potential regulatory concerns
-        red_flags = []
-        if transaction_row["DMBTR"] > df_original["DMBTR"].quantile(0.95):  # High-value approval needed
-            red_flags.append(f"🚨 **High-Value Transaction:** Amount ({transaction_row['DMBTR']}) is in the top 5% of all transactions, requiring higher approvals.")
+    #     # Derive potential regulatory concerns
+    #     red_flags = []
+    #     if transaction_row["DMBTR"] > df_original["DMBTR"].quantile(0.95):  # High-value approval needed
+    #         red_flags.append(f"🚨 **High-Value Transaction:** Amount ({transaction_row['DMBTR']}) is in the top 5% of all transactions, requiring higher approvals.")
 
-        if df_original[(df_original["DMBTR"] == transaction_row["DMBTR"]) & 
-                    (df_original["BUKRS"] == transaction_row["BUKRS"])].shape[0] > 1:
-            red_flags.append(f"🚨 **Potential Duplicate Payment:** A transaction with the same amount and company code already exists.")
+    #     if df_original[(df_original["DMBTR"] == transaction_row["DMBTR"]) & 
+    #                 (df_original["BUKRS"] == transaction_row["BUKRS"])].shape[0] > 1:
+    #         red_flags.append(f"🚨 **Potential Duplicate Payment:** A transaction with the same amount and company code already exists.")
 
-        if transaction_row["HKONT"] not in df_original["HKONT"].value_counts().head(20).index:
-            red_flags.append(f"🚨 **Uncommon Account Used:** The posting key ({transaction_row['HKONT']}) is rarely used in similar transactions.")
+    #     if transaction_row["HKONT"] not in df_original["HKONT"].value_counts().head(20).index:
+    #         red_flags.append(f"🚨 **Uncommon Account Used:** The posting key ({transaction_row['HKONT']}) is rarely used in similar transactions.")
 
-        # Format retrieved transaction data
-        retrieved_info = "\n".join([
-            f"- **Transaction ID**: {t['BELNR']}, **Amount**: {t['DMBTR']}, **Company Code**: {t['BUKRS']}, **Posting Key**: {t['BSCHL']}"
-            for t in retrieved_transactions
-        ])
-        # Precompute the formatted red flags string
-        red_flags_text = "\n".join(red_flags) if red_flags else "No immediate compliance concerns detected, but further review recommended."
+    #     # Format retrieved transaction data
+    #     retrieved_info = "\n".join([
+    #         f"- **Transaction ID**: {t['BELNR']}, **Amount**: {t['DMBTR']}, **Company Code**: {t['BUKRS']}, **Posting Key**: {t['BSCHL']}"
+    #         for t in retrieved_transactions
+    #     ])
+    #     # Precompute the formatted red flags string
+    #     red_flags_text = "\n".join(red_flags) if red_flags else "No immediate compliance concerns detected, but further review recommended."
 
 
-        # Create a structured prompt for LLM
-        prompt = f"""
-        ### 📊 **Audit Report for Transaction ID: {transaction_row['BELNR']}**
+    #     # Create a structured prompt for LLM
+    #     prompt = f"""
+    #     ### 📊 **Audit Report for Transaction ID: {transaction_row['BELNR']}**
         
-        **🔎 Transaction Overview:**
-        - **Amount:** {transaction_row['DMBTR']}
-        - **Company Code:** {transaction_row['BUKRS']}
-        - **Profit Center:** {transaction_row['PRCTR']}
-        - **Posting Key:** {transaction_row['BSCHL']}
-        - **Ledger Account:** {transaction_row['HKONT']}
+    #     **🔎 Transaction Overview:**
+    #     - **Amount:** {transaction_row['DMBTR']}
+    #     - **Company Code:** {transaction_row['BUKRS']}
+    #     - **Profit Center:** {transaction_row['PRCTR']}
+    #     - **Posting Key:** {transaction_row['BSCHL']}
+    #     - **Ledger Account:** {transaction_row['HKONT']}
         
-        **📌 Retrieved Similar Anomalies:**
-        {retrieved_info}
+    #     **📌 Retrieved Similar Anomalies:**
+    #     {retrieved_info}
         
-        **🚨 Potential Regulatory Concerns:**
-        {red_flags_text}
-        **🛠️ Audit Assessment:**
-        Provide a **detailed financial audit explanation** for why this transaction is considered anomalous. Focus on:
-        - **Fraud Risks** (e.g., duplicate payments, high-value transfers, suspicious vendor activity)
-        - **Regulatory Violations** (e.g., missing approvals, incorrect classifications)
-        - **Operational Errors** (e.g., unusual timing, unauthorized accounts)
+    #     **🚨 Potential Regulatory Concerns:**
+    #     {red_flags_text}
+    #     **🛠️ Audit Assessment:**
+    #     Provide a **detailed financial audit explanation** for why this transaction is considered anomalous. Focus on:
+    #     - **Fraud Risks** (e.g., duplicate payments, high-value transfers, suspicious vendor activity)
+    #     - **Regulatory Violations** (e.g., missing approvals, incorrect classifications)
+    #     - **Operational Errors** (e.g., unusual timing, unauthorized accounts)
 
-        Provide clear **recommendations for auditors** on how to investigate further.
-        """
+    #     Provide clear **recommendations for auditors** on how to investigate further.
+    #     """
 
-        # Generate explanation from LLM
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "system", "content": "You are an expert financial auditor."},
-                    {"role": "user", "content": prompt}]
-        )
+    #     # Generate explanation from LLM
+    #     response = openai.ChatCompletion.create(
+    #         model="gpt-4",
+    #         messages=[{"role": "system", "content": "You are an expert financial auditor."},
+    #                 {"role": "user", "content": prompt}]
+    #     )
 
-        explanation = response["choices"][0]["message"]["content"]
+    #     explanation = response["choices"][0]["message"]["content"]
         
-        # Precompute the red flags text
-        red_flags_text = "\n".join(red_flags) if red_flags else "✅ No immediate compliance concerns detected."
+    #     # Precompute the red flags text
+    #     red_flags_text = "\n".join(red_flags) if red_flags else "✅ No immediate compliance concerns detected."
 
-        # Return a structured audit report
-        report = f"""
-        # 📊 **Audit Report: Transaction {transaction_row['BELNR']}**
+    #     # Return a structured audit report
+    #     report = f"""
+    #     # 📊 **Audit Report: Transaction {transaction_row['BELNR']}**
         
-        ## 🔎 **Transaction Details**
-        - **Amount:** {transaction_row['DMBTR']}
-        - **Company Code:** {transaction_row['BUKRS']}
-        - **Profit Center:** {transaction_row['PRCTR']}
-        - **Posting Key:** {transaction_row['BSCHL']}
-        - **Ledger Account:** {transaction_row['HKONT']}
+    #     ## 🔎 **Transaction Details**
+    #     - **Amount:** {transaction_row['DMBTR']}
+    #     - **Company Code:** {transaction_row['BUKRS']}
+    #     - **Profit Center:** {transaction_row['PRCTR']}
+    #     - **Posting Key:** {transaction_row['BSCHL']}
+    #     - **Ledger Account:** {transaction_row['HKONT']}
         
-        ## 🔍 **Retrieved Similar Transactions**
-        {retrieved_info}
+    #     ## 🔍 **Retrieved Similar Transactions**
+    #     {retrieved_info}
         
-        ## 🚨 **Potential Compliance Risks**
-        {red_flags_text}
+    #     ## 🚨 **Potential Compliance Risks**
+    #     {red_flags_text}
 
-        ## 🛠️ **AI-Generated Audit Explanation**
-        {explanation}
+    #     ## 🛠️ **AI-Generated Audit Explanation**
+    #     {explanation}
         
-        ## 📌 **Next Steps for Auditors**
-        - Review supporting documentation (invoices, approval records)
-        - Validate vendor legitimacy and past transaction history
-        - Cross-check similar flagged transactions
-        """
+    #     ## 📌 **Next Steps for Auditors**
+    #     - Review supporting documentation (invoices, approval records)
+    #     - Validate vendor legitimacy and past transaction history
+    #     - Cross-check similar flagged transactions
+    #     """
 
-        return report
+    #     return report
 
 
 
