@@ -1,0 +1,5 @@
+{
+    "autoencoder": "refined_autoencoder_with_metadata.pth",
+    "transaction_embeddings": "refined_transaction_embeddings.npy",
+    "index": "refined_transaction_faiss.index"
+}
