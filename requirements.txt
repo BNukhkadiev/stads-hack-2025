@@ -5,3 +5,7 @@ pandas
 seaborn
 matplotlib
 imblearn
+openai
+langchain
+langchain_openai
+langchain-cli
