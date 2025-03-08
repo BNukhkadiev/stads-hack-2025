@@ -48,7 +48,7 @@ class RAG:
         transaction_embedding = np.asarray(self.transaction_embeddings[query_id], dtype="float32").reshape(1, -1)  # Ensure correct shape
 
         # Find similar transactions using FAISS
-        distances, indices = self.find_similar_transactions(transaction_embedding, top_k=5)
+        distances, indices = self.find_similar_transactions(transaction_embedding, top_k=20)
 
         # Extract metadata for similar transactions
         retrieved_transactions = df_original.iloc[indices[0]].to_dict(orient="records")
@@ -273,10 +273,10 @@ if __name__=="__main__":
 
 
     # Load your original transaction dataset (same one used to train embeddings)
-    df_original = pd.read_csv("data/datathon_data.csv")  # Replace with your actual file path
+    df_original = pd.read_csv("../data/datathon_data.csv")  # Replace with your actual file path
 
     # Select an anomaly transaction ID for analysis
-    query_id = 506926  # Change this to any anomaly ID you want to analyze
+    query_id = 170320  # Change this to any anomaly ID you want to analyze
     rag = RAG(index_path="index/refined_transaction_faiss.index", transaction_embeddings_path="weights/refined_transaction_embeddings.npy")
     # Generate audit explanation using RAG
     explanation = rag.generate_rag_from_id(query_id, df_original)
