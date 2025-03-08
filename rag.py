@@ -8,14 +8,17 @@ import torch
 
 
 class RAG:
-    def __init__(self, index_path:str, transaction_embeddings_path:str, autoencoder=None):
+    def __init__(self, index_path:str, transaction_embeddings_path:str, autoencoder=None, key=None):
         # Load FAISS index & embeddings
         self.index = faiss.read_index(index_path)
         self.autoencoder = autoencoder
         self.transaction_embeddings = np.load(transaction_embeddings_path).astype("float32")
         # Set up OpenAI API key
-        load_dotenv()
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+        if key is not None:
+            openai.api_key
+        else:
+            load_dotenv()
+            openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
     # Function to find similar transactions
