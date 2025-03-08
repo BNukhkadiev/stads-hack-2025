@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from rag import RAG
 
 # system_prompt = "Input transaction ID to get explanation"
-df_original = pd.read_csv("data/datathon_data.csv", index_col="BELNR")
+df_original = pd.read_csv("../data/datathon_data.csv", index_col="BELNR")
 
 # Initialize session state for OpenAI token and messages
 # if "openai_token" not in st.session_state:
