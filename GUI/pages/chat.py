@@ -2,7 +2,7 @@ import streamlit as st
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-system_prompt = "You explain anomalies in a dataset to an auditor based on the rules we set."
+system_prompt = "assist with auditing and anomalous transaction detection in financial data"
 
 # Initialize session state for OpenAI token and messages
 if "openai_token" not in st.session_state:
