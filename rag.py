@@ -15,7 +15,7 @@ class RAG:
         self.transaction_embeddings = np.load(transaction_embeddings_path).astype("float32")
         # Set up OpenAI API key
         if key is not None:
-            openai.api_key
+            openai.api_key = key
         else:
             load_dotenv()
             openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -55,15 +55,31 @@ class RAG:
 
         # Derive potential regulatory concerns
         red_flags = []
-        if transaction_row["DMBTR"] > df_original["DMBTR"].quantile(0.95):  # High-value approval needed
+        if transaction_row["DMBTR"] > df_original["DMBTR"].quantile(0.95):
             red_flags.append(f"🚨 **High-Value Transaction:** Amount ({transaction_row['DMBTR']}) is in the top 5% of all transactions, requiring higher approvals.")
 
         if df_original[(df_original["DMBTR"] == transaction_row["DMBTR"]) & 
-                    (df_original["BUKRS"] == transaction_row["BUKRS"])].shape[0] > 1:
+                       (df_original["BUKRS"] == transaction_row["BUKRS"])].shape[0] > 1:
             red_flags.append(f"🚨 **Potential Duplicate Payment:** A transaction with the same amount and company code already exists.")
 
         if transaction_row["HKONT"] not in df_original["HKONT"].value_counts().head(20).index:
-            red_flags.append(f"🚨 **Uncommon Account Used:** The posting key ({transaction_row['HKONT']}) is rarely used in similar transactions.")
+            red_flags.append(f"🚨 **Uncommon Account Used:** The ledger account ({transaction_row['HKONT']}) is rarely used in similar transactions.")
+
+        # Applying additional rule-based anomaly checks
+        if df_original.duplicated(subset=["BUKRS", "WRBTR", "DMBTR"], keep=False).any():
+            red_flags.append("🚨 **Unique Value Combination Detected:** This transaction has a unique combination of company, currency, and amount, which may require further review.")
+
+        if transaction_row["WAERS"] not in df_original[df_original["BUKRS"] == transaction_row["BUKRS"]]["WAERS"].unique():
+            red_flags.append(f"🚨 **Unusual Currency for Company:** The currency ({transaction_row['WAERS']}) is uncommon for company ({transaction_row['BUKRS']}).")
+
+        if 54423 <= transaction_row["WRBTR"] <= 54478 and 910631 <= transaction_row["DMBTR"] <= 910677:
+            red_flags.append("🚨 **Suspicious Amount Range:** Both WRBTR and DMBTR are within specific flagged ranges, indicating possible irregularities.")
+
+        if transaction_row["PRCTR"] == "C20" and transaction_row["HKONT"] == "B1":
+            red_flags.append("🚨 **Unusual Profit Center & Ledger Combination:** PRCTR is 'C20' and HKONT is 'B1', which is rarely observed in normal transactions.")
+
+        if transaction_row["BUKRS"] == "C11" and (54423 <= transaction_row["WRBTR"] <= 54478 or 910631 <= transaction_row["DMBTR"] <= 910677):
+            red_flags.append("🚨 **Company-Specific Anomaly:** Transactions from company 'C11' with these WRBTR or DMBTR values are flagged for unusual activity.")
 
         # Format retrieved transaction data
         retrieved_info = "\n".join([
