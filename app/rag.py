@@ -48,7 +48,7 @@ class RAG:
         transaction_embedding = np.asarray(self.transaction_embeddings[query_id], dtype="float32").reshape(1, -1)  # Ensure correct shape
 
         # Find similar transactions using FAISS
-        distances, indices = self.find_similar_transactions(transaction_embedding, top_k=5)
+        distances, indices = self.find_similar_transactions(transaction_embedding, top_k=20)
 
         # Extract metadata for similar transactions
         retrieved_transactions = df_original.iloc[indices[0]].to_dict(orient="records")
