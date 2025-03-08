@@ -1,5 +1,7 @@
 numpy
 scipy
+sklearn
 pandas
 seaborn
 matplotlib
+imblearn
