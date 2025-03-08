@@ -1,8 +1,11 @@
 import streamlit as st
+import pandas as pd
+from rag import RAG
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-system_prompt = "assist with auditing and anomalous transaction detection in financial data"
+system_prompt = "Input transaction ID to get explanation"
+df_original = pd.read_csv("../data/datathon_data.csv")
 
 # Initialize session state for OpenAI token and messages
 if "openai_token" not in st.session_state:
@@ -12,8 +15,7 @@ if "messages" not in st.session_state:
         {"role": "system", "content": system_prompt}
     ]
 
-# Sidebar: Input OpenAI token
-st.sidebar.title("OpenAI API Key")
+# sidebar: Input OpenAI token
 token_input = st.sidebar.text_input(
     "Enter your OpenAI API key",
     type="password",
@@ -21,6 +23,7 @@ token_input = st.sidebar.text_input(
     help="Provide your OpenAI API key to use the chatbot."
 )
 
+# sidebar: Input transaction ID
 transaction_input = st.sidebar.text_input(
     "Enter your Transaction ID",
     type="default",
@@ -32,8 +35,12 @@ if token_input:
     st.session_state.openai_token = token_input
     st.sidebar.success("API key saved!")
 
+rag = RAG(index_path="index/refined_transaction_faiss.index", transaction_embeddings_path="weights/refined_transaction_embeddings.npy")
+# Generate audit explanation using RAG
+explanation = rag.generate_rag_from_id(transaction_input, df_original)
+
 # Chat interface
-st.title("Chatbot")
+st.title("RAG explanation")
 
 # Display chat history
 for message in st.session_state.messages:
