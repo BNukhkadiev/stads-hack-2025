@@ -1,6 +1,5 @@
 #%% load
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
 from get_ids import get_ids_of_easy_outliers
 
 #load data
@@ -12,6 +11,8 @@ ids_to_remove = get_ids_of_easy_outliers(df)
 df = df.drop(index = ids_to_remove, columns=['BELNR'])
 
 #%% encode
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, recall_score
 # Assuming your dataset is a pandas DataFrame called 'df'
 # Select all columns that are of type 'object' (i.e., char/categorical)
 categorical_columns = df.select_dtypes(include=['object']).columns
@@ -21,8 +22,7 @@ df_encoded = pd.get_dummies(df, columns=categorical_columns)
 df_encoded = df_encoded.rename(columns={"label_anomal": "label"}).drop(columns="label_regular")
 
 #%%
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score, recall_score
+
 # Define the target and features
 X = df_encoded.drop(columns=['label'])  # All columns except the 'label'
 y = df_encoded['label']  # The target variable
@@ -34,7 +34,7 @@ X_train, y_train = X, y
 X_test, y_test = X, y
 
 # Initialize and train the Decision Tree model
-model = DecisionTreeClassifier(random_state=42)
+model = DecisionTreeClassifier(random_state=42, max_features= "log2")
 model.fit(X_train, y_train)
 
 # Make predictions
@@ -52,7 +52,8 @@ import matplotlib.pyplot as plt
 from sklearn.tree import plot_tree
 
 # Plot the decision tree
-plt.figure(figsize=(20, 10))  # Adjusting figure size
+plt.figure(figsize=(20, 20), facecolor='black')  # Adjusting figure size
+
 plot_tree(model, 
           feature_names=X.columns,   # List of feature names
           class_names=[str(c) for c in model.classes_],  # Class names as strings
